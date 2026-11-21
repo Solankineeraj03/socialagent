@@ -1,0 +1,1 @@
+Caption alignment helpers copied from the MIT-licensed Digital Samba claude-code-video-toolkit used by the PC Diagnostics video. See LICENSE in this directory. The wrapper invokes only local Whisper transcription and script alignment; it does not invoke the toolkit CLI or any cloud API.

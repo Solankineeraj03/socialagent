@@ -1,0 +1,7 @@
+node_modules
+.next
+package-lock.json
+.data
+Social_Media_Agent_Codex_Prompt.md
+playwright-report
+test-results

@@ -1,0 +1,75 @@
+name: socialagent
+x-app-env: &app-env
+  APP_MODE: demo
+  DATABASE_URL: postgres://socialagent:socialagent@db:5432/socialagent_demo
+  NEXTAUTH_URL: http://localhost:3000
+  NEXTAUTH_SECRET: demo-only-secret-change-before-live-32chars
+  STORAGE_DRIVER: s3
+  S3_ENDPOINT: http://storage:9090
+  S3_BUCKET: socialagent-demo
+  S3_ACCESS_KEY: S3RVER
+  S3_SECRET_KEY: S3RVER
+  OUTBOUND_ENABLED: "false"
+  NEXT_TELEMETRY_DISABLED: "1"
+services:
+  db:
+    image: postgres:17.6-bookworm
+    environment:
+      POSTGRES_DB: socialagent_demo
+      POSTGRES_USER: socialagent
+      POSTGRES_PASSWORD: socialagent
+    ports: ["127.0.0.1:54329:5432"]
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U socialagent -d socialagent_demo"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  storage:
+    image: adobe/s3mock:4.10.0
+    environment:
+      initialBuckets: socialagent-demo
+      root: /data
+      retainFilesOnExit: "true"
+    ports: ["127.0.0.1:9000:9090"]
+    volumes: ["asset-data:/data"]
+    restart: unless-stopped
+  setup:
+    build: .
+    environment: *app-env
+    depends_on:
+      db: { condition: service_healthy }
+      storage: { condition: service_started }
+    command: ["sh", "-c", "npm run migrate && npm run seed"]
+  web:
+    build: .
+    environment: *app-env
+    depends_on:
+      setup: { condition: service_completed_successfully }
+    ports: ["127.0.0.1:3000:3000"]
+    volumes: ["./.data/demo-export:/app/.data/demo-export:ro"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 4s
+      retries: 30
+    restart: unless-stopped
+  worker:
+    build: .
+    environment: *app-env
+    depends_on:
+      setup: { condition: service_completed_successfully }
+    command: ["npm", "run", "worker"]
+    init: true
+    stop_grace_period: 35s
+    restart: unless-stopped
+volumes:
+  postgres-data:
+  asset-data:
